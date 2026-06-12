@@ -30,9 +30,20 @@ class TasksController extends StateNotifier<AsyncValue<List<Task>>> {
     await loadTasks();
   }
 
+  Future<void> editTask(int id, String title, {String? description}) async {
+    await _repository.updateTask(id, title, description: description);
+    await loadTasks();
+  }
+
   Future<void> deleteTask(int id) async {
     await _repository.deleteTask(id);
     await loadTasks();
+  }
+
+  void removeTaskLocal(int id) {
+    final tareas = state.value;
+    if (tareas == null) return;
+    state = AsyncData(tareas.where((t) => t.id != id).toList());
   }
 }
 

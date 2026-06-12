@@ -35,42 +35,80 @@ class TasksScreen extends ConsumerWidget {
       ),
       body: tasksState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Text(error.toString().replaceFirst('Exception', '')),
-        ),
+        error: (error, _) =>
+            Center(child: Text(error.toString().replaceFirst('Exception', ''))),
         data: (tasks) {
           if (tasks.isEmpty) {
-            return const Center(child: Text('No hay tareas disponibles'));
-          }
-          return ListView.builder(
-            itemCount: tasks.length,
-            itemBuilder: (context, index) {
-              final task = tasks[index];
-              return Dismissible(
-                key: ValueKey(task.id),
-                direction: DismissDirection.endToStart,
-                onDismissed: (_) => _borrarTarea(context, ref, task),
-                background: Container(
-                  color: Colors.red,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  child: const Icon(Icons.delete, color: Colors.white),
-                ),
-                child: ListTile(
-                  onTap: () => _alternarCompletada(context, ref, task),
-                  leading: Icon(
-                    task.isCompleted
-                        ? Icons.check_circle
-                        : Icons.radio_button_unchecked,
-                    color: task.isCompleted ? Colors.green : null,
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.checklist_rtl,
+                    size: 80,
+                    color: Colors.grey.shade400,
                   ),
-                  title: Text(task.title),
-                  subtitle: task.description != null
-                      ? Text(task.description!)
-                      : null,
-                ),
-              );
-            },
+                  const Text(
+                    'no tiene tareas',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'toca el mas para crear una tarea ',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: () =>
+                ref.read(tasksControllerProvider.notifier).loadTasks(),
+            child: ListView.builder(
+              itemCount: tasks.length,
+              itemBuilder: (context, index) {
+                final task = tasks[index];
+                return Dismissible(
+                  key: ValueKey(task.id),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (_) => _borrarTarea(context, ref, task),
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  child: ListTile(
+                    onTap: () => _alternarCompletada(context, ref, task),
+                    leading: Icon(
+                      task.isCompleted
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      color: task.isCompleted ? Colors.green : null,
+                    ),
+
+                    title: Text(
+                      task.title,
+                      style: TextStyle(
+                        decoration: task.isCompleted
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                        color: task.isCompleted ? Colors.grey : null,
+                      ),
+                    ),
+                    subtitle: task.description != null
+                        ? Text(task.description!)
+                        : null,
+
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.grey),
+                      onPressed: () =>
+                          _mostrarDialogoEditar(context, ref, task),
+                    ),
+                  ),
+                );
+              },
+            ),
           );
         },
       ),
@@ -86,10 +124,10 @@ class TasksScreen extends ConsumerWidget {
   }
 
   Future<void> _alternarCompletada(
-      BuildContext context,
-      WidgetRef ref,
-      Task task,
-      ) async {
+    BuildContext context,
+    WidgetRef ref,
+    Task task,
+  ) async {
     try {
       await ref
           .read(tasksControllerProvider.notifier)
@@ -102,23 +140,99 @@ class TasksScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _mostrarDialogoEditar(
+    BuildContext context,
+    WidgetRef ref,
+    Task task,
+  ) async {
+    final tituloController = TextEditingController(text: task.title);
+    final descController = TextEditingController(text: task.description ?? '');
+
+    await showDialog(
+      context: context,
+      builder: (dialogoContext) {
+        return AlertDialog(
+          title: const Text('Editar tarea'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: tituloController,
+                decoration: const InputDecoration(labelText: 'Titulo'),
+              ),
+              TextField(
+                controller: descController,
+                decoration: const InputDecoration(
+                  labelText: 'Descripcion (opcional)',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogoContext),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final titulo = tituloController.text.trim();
+                if (titulo.isEmpty) return;
+                try {
+                  await ref
+                      .read(tasksControllerProvider.notifier)
+                      .editTask(
+                        task.id,
+                        titulo,
+                        description: descController.text.trim(),
+                      );
+                  if (!dialogoContext.mounted) return;
+                  Navigator.pop(dialogoContext);
+                } catch (e) {
+                  if (!dialogoContext.mounted) return;
+                  ScaffoldMessenger.of(dialogoContext).showSnackBar(
+                    SnackBar(
+                      content: Text(e.toString().replaceFirst('Exception', '')),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _borrarTarea(
-      BuildContext context,
-      WidgetRef ref,
-      Task task,
-      ) async {
-    try {
-      await ref.read(tasksControllerProvider.notifier).deleteTask(task.id);
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception', ''))),
-      );
+    BuildContext context,
+    WidgetRef ref,
+    Task task,
+  ) async {
+    final notifier = ref.read(tasksControllerProvider.notifier);
+
+    notifier.removeTaskLocal(task.id);
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    final cierre = await messenger
+        .showSnackBar(
+          SnackBar(
+            content: Text('Tarea "${task.title}" eliminada'),
+            action: SnackBarAction(
+              label: 'Deshacer',
+              onPressed: () => notifier.loadTasks(),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        )
+        .closed;
+    if (cierre != SnackBarClosedReason.action) {
+      await notifier.deleteTask(task.id);
     }
   }
 
-  Future<void> _mostrarDialogoCrear(BuildContext context, WidgetRef ref) async
-  {
+  Future<void> _mostrarDialogoCrear(BuildContext context, WidgetRef ref) async {
     final tituloController = TextEditingController();
     final descController = TextEditingController();
 
@@ -155,9 +269,9 @@ class TasksScreen extends ConsumerWidget {
                   await ref
                       .read(tasksControllerProvider.notifier)
                       .createTask(
-                    titulo,
-                    description: descController.text.trim(),
-                  );
+                        titulo,
+                        description: descController.text.trim(),
+                      );
                   if (!dialogoContext.mounted) return;
                   Navigator.pop(dialogoContext);
                 } catch (e) {

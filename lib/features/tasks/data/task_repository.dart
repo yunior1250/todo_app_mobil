@@ -1,4 +1,3 @@
-
 import '../../../core/network/dio_client.dart';
 import '../domain/task.dart';
 
@@ -30,6 +29,18 @@ class TaskRepository {
 
   Future<void> updateCompleted(int id, bool isCompleted) async {
     await _dioClient.dio.put('/tasks/$id', data: {'is_completed': isCompleted});
+  }
+
+  Future<void> updateTask(int id, String title, {String? description}) async {
+    await _dioClient.dio.put(
+      '/tasks/$id',
+      data: {
+        'title': title,
+        'description': (description != null && description.isNotEmpty)
+            ? description
+            : null,
+      },
+    );
   }
 
   Future<void> deleteTask(int id) async {

@@ -10,6 +10,7 @@ Future<void> main() async {
   final token = await TokenStorage().readToken();
 
   runApp(
+
     ProviderScope(
       overrides: [sessionTokenProvider.overrideWith((ref) => token)],
       child: const TodoApp(),
